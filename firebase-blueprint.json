@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "A student registered in the tuition classes.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the student" },
+        "class": { "type": "string", "description": "The current class of the student" },
+        "contactNumber": { "type": "string", "description": "Parents' contact number" },
+        "shift": { "type": "string", "enum": ["1st", "2nd", "3rd"], "description": "Tuition shift" },
+        "createdAt": { "type": "number", "description": "Server timestamp of creation" },
+        "updatedAt": { "type": "number", "description": "Server timestamp of last update" },
+        "createdBy": { "type": "string", "description": "UID of the user who registered the student" }
+      },
+      "required": ["name", "class", "contactNumber", "createdAt", "createdBy"]
+    },
+    "DailyReport": {
+      "title": "Daily Report",
+      "description": "Daily progress or attendance report for a student.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string", "description": "Reference to the student ID" },
+        "studentName": { "type": "string", "description": "Name of the student for easier reporting" },
+        "date": { "type": "string", "format": "date", "description": "The date of the report" },
+        "attendance": { "type": "boolean", "description": "Whether the student was present" },
+        "homeworkStatus": { "type": "string", "enum": ["Complete", "Incomplete", "Partially Complete"] },
+        "classFocus": { "type": "string", "enum": ["Good", "Moderate", "Poor", "Extremely Poor"] },
+        "classBehaviour": { "type": "string", "enum": ["Excellent", "Good", "Normal", "Poor"] },
+        "complaint": { "type": "string", "description": "Optional complaint notes" },
+        "createdAt": { "type": "number", "description": "Timestamp of report creation" },
+        "createdBy": { "type": "string", "description": "UID of the tutor who created the report" }
+      },
+      "required": ["studentId", "date", "attendance", "createdAt", "createdBy"]
+    }
+  },
+  "firestore": {
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Collection of students."
+    },
+    "/reports/{reportId}": {
+      "schema": "DailyReport",
+      "description": "Collection of daily student reports."
+    }
+  }
+}

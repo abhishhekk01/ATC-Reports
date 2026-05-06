@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Validation Helpers ---
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['name', 'class', 'contactNumber', 'createdAt', 'createdBy']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 7 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.class is string && data.class.size() <= 20 &&
+             data.contactNumber is string && data.contactNumber.size() <= 20 &&
+             (!data.keys().hasAny(['shift']) || data.shift in ['1st', '2nd', '3rd']) &&
+             data.createdAt is timestamp &&
+             data.createdBy is string &&
+             (data.keys().size() == 5 || (data.keys().hasAny(['updatedAt']) && data.updatedAt is timestamp) || data.keys().hasAny(['shift']));
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['studentId', 'date', 'attendance', 'createdAt', 'createdBy']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 11 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             data.date is string && data.date.size() == 10 &&
+             data.attendance is bool &&
+             (!data.keys().hasAny(['studentName']) || (data.studentName is string && data.studentName.size() <= 100)) &&
+             (!data.keys().hasAny(['homeworkStatus']) || data.homeworkStatus == null || data.homeworkStatus in ['Complete', 'Incomplete', 'Partially Complete']) &&
+             (!data.keys().hasAny(['classFocus']) || data.classFocus == null || data.classFocus in ['Good', 'Moderate', 'Poor', 'Extremely Poor']) &&
+             (!data.keys().hasAny(['classBehaviour']) || data.classBehaviour == null || data.classBehaviour in ['Excellent', 'Good', 'Normal', 'Poor']) &&
+             (!data.keys().hasAny(['complaint']) || (data.complaint is string && data.complaint.size() <= 500)) &&
+             data.createdAt is timestamp &&
+             data.createdBy is string;
+    }
+
+    // --- Collections ---
+
+    match /students/{studentId} {
+      allow get: if isSignedIn() && isOwner(existing().createdBy);
+      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      
+      allow create: if isSignedIn() && 
+                      isValidId(studentId) && 
+                      isValidStudent(incoming()) && 
+                      incoming().createdBy == request.auth.uid &&
+                      incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() && isOwner(existing().createdBy) && 
+                      isValidStudent(incoming()) &&
+                      incoming().createdBy == existing().createdBy &&
+                      incoming().createdAt == existing().createdAt &&
+                      (incoming().updatedAt == request.time || !incoming().diff(existing()).affectedKeys().hasAny(['updatedAt'])) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['name', 'class', 'contactNumber', 'updatedAt']);
+                      
+      allow delete: if isSignedIn() && isOwner(existing().createdBy);
+    }
+
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && isOwner(existing().createdBy);
+      allow list: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(incoming());
+      
+      allow update: if isSignedIn() && isOwner(existing().createdBy) &&
+                      isValidReport(incoming()) &&
+                      incoming().createdBy == existing().createdBy &&
+                      incoming().createdAt == existing().createdAt &&
+                      incoming().studentId == existing().studentId &&
+                      (incoming().updatedAt == request.time || !incoming().diff(existing()).affectedKeys().hasAny(['updatedAt'])) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly([
+                        'attendance', 'date', 'studentName', 'homeworkStatus', 
+                        'classFocus', 'classBehaviour', 'complaint', 'updatedAt'
+                      ]);
+                      
+      allow delete: if isSignedIn() && isOwner(existing().createdBy);
+    }
+  }
+}
